@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* Warm cream surfaces */
+  --color-page: #FDFCF7;
+  --color-card: #FFFFFF;
+  --color-rail: #FFFFFF;
+  --color-tint: #FBF8EE;
+  --color-tint-2: #F7F2E2;
+  --color-line: #F0EDE1;
+  --color-line-2: #E5E0CE;
+
+  /* Ink */
+  --color-ink: #1A1A17;
+  --color-body: #5C5A51;
+  --color-mute: #96938A;
+
+  /* Amber primary */
+  --color-amber: #FBC02D;
+  --color-amber-hi: #F4B21A;
+  --color-amber-deep: #B98407;
+  --color-amber-tint: #FEF6DC;
+  --color-amber-tint-2: #FDEFC4;
+
+  /* Semantic */
+  --color-good: #2E9E5B;
+  --color-good-tint: #E8F6ED;
+  --color-warn: #D98A0B;
+  --color-warn-tint: #FDF2DC;
+  --color-bad: #DC4A3D;
+  --color-bad-tint: #FCEDEB;
+  --color-info: #3B7EA1;
+  --color-info-tint: #E9F3F8;
+}
+
+html,
+body {
+  background-color: #FDFCF7;
+}
+
+body {
+  color: #1A1A17;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #FDEFC4;
+  color: #1A1A17;
+}
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: #FBF8EE; }
+::-webkit-scrollbar-thumb { background: #E5E0CE; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #D4CDB4; }
+
+:focus-visible {
+  outline: 2px solid #FBC02D;
+  outline-offset: 2px;
+}
+
+input, textarea, select, button { font-family: inherit; }
+
+/* One consistent card treatment, matching the reference's soft rounded panels */
+.card {
+  background: #FFFFFF;
+  border: 1px solid #F0EDE1;
+  border-radius: 16px;
+}
+
+/* Subtle warm wash used behind the login art panel */
+.cream-wash {
+  background-color: #FDFCF7;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 10% 0%, rgba(251, 192, 45, 0.16) 0%, rgba(251, 192, 45, 0) 62%),
+    radial-gradient(ellipse 60% 45% at 95% 8%, rgba(251, 192, 45, 0.10) 0%, rgba(251, 192, 45, 0) 60%);
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
