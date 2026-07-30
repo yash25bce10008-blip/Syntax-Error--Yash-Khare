@@ -46,6 +46,20 @@ export type StageProgress = {
   quizScore?: number
 }
 
+export type LearningProfile = {
+  completed: boolean
+  currentSkills: string[]
+  desiredRole: string
+  pace: 'slow' | 'balanced' | 'fast'
+  learningStyle: 'visual' | 'theory' | 'coding' | 'project'
+  practicePreference: 'quizzes' | 'coding' | 'projects' | 'reading'
+  weeklyHours: number
+  confidence: 'beginner' | 'intermediate' | 'advanced'
+  goalReason: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type Activity = {
   id: string
   text: string
@@ -69,6 +83,7 @@ export type UserProfile = {
   xp: number
   streak: number
   activities: Activity[]
+  learningProfile?: LearningProfile
   resumeFileName?: string
   createdAt: string
 }

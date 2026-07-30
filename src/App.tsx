@@ -40,6 +40,7 @@ import {
   searchEverything,
   skillDictionary,
   type CareerRole,
+  type LearningProfile,
   type RoadmapStage,
   type UserProfile
 } from './lib/skillSyncData'
@@ -221,6 +222,10 @@ function AppShell({ user, setUser }: { user: UserProfile; setUser: (user: UserPr
     setUser(null)
   }
 
+  if (!user.learningProfile?.completed) {
+    return <OnboardingFlow user={user} setUser={setUser} onLogout={logout} />
+  }
+
   return (
     <main className="min-h-screen bg-[#b8d7d4] p-3 text-slate-950 sm:p-6">
       <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-7xl overflow-hidden rounded-[1.75rem] border border-white/70 bg-[#e8f0eb]/82 shadow-[0_24px_80px_rgba(20,68,75,0.18)] sm:min-h-[calc(100vh-3rem)]">
@@ -262,7 +267,7 @@ function AppShell({ user, setUser }: { user: UserProfile; setUser: (user: UserPr
 
           <div className="p-4 md:p-6 lg:p-8">
             {view === 'dashboard' && <Dashboard user={user} career={career} setView={setView} onStage={setDrawerStage} />}
-            {view === 'careers' && <CareerEngine user={user} setUser={setUser} />}
+            {view === 'careers' && <CareerEngine user={user} setUser={setUser} setView={setView} />}
             {view === 'roadmap' && <RoadmapView user={user} career={career} onStage={setDrawerStage} />}
             {view === 'skills' && <SkillsView user={user} setUser={setUser} career={career} />}
           </div>
@@ -271,6 +276,54 @@ function AppShell({ user, setUser }: { user: UserProfile; setUser: (user: UserPr
       <AnimatePresence>{drawerStage && <StageDrawer stage={drawerStage} career={career} user={user} setUser={setUser} onClose={() => setDrawerStage(null)} />}</AnimatePresence>
     </main>
   )
+}
+
+function OnboardingFlow({ user, setUser, onLogout }: { user: UserProfile; setUser: (user: UserProfile) => void; onLogout: () => void }) {
+  const [step, setStep] = useState(0)
+  const [goal, setGoal] = useState(user.selectedCareerId || careers[0].id)
+  const [skills, setSkills] = useState(user.skills.join(', '))
+  const [pace, setPace] = useState<LearningProfile['pace']>('balanced')
+  const [learningStyle, setLearningStyle] = useState<LearningProfile['learningStyle']>('coding')
+  const [practicePreference, setPracticePreference] = useState<LearningProfile['practicePreference']>('projects')
+  const [weeklyHours, setWeeklyHours] = useState(6)
+  const [confidence, setConfidence] = useState<LearningProfile['confidence']>('beginner')
+  const [goalReason, setGoalReason] = useState('I want a clear job-ready path with projects and resources.')
+  const [saving, setSaving] = useState(false)
+  const selectedCareer = getCareer(goal)
+  const parsedSkills = skills.split(',').map((skill) => skill.trim()).filter(Boolean)
+  const recommended = recommendCareers(`${goalReason} ${user.department} ${skills}`)
+
+  async function finish() {
+    setSaving(true)
+    const profile: LearningProfile = {
+      completed: true,
+      currentSkills: parsedSkills,
+      desiredRole: selectedCareer.title,
+      pace,
+      learningStyle,
+      practicePreference,
+      weeklyHours,
+      confidence,
+      goalReason,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    const updated = await SkillSyncAPI.saveLearningProfile(user, profile, selectedCareer.id, parsedSkills)
+    setUser(updated)
+    setSaving(false)
+  }
+
+  return <main className="min-h-screen bg-[#b8d7d4] p-3 text-slate-950 sm:p-6"><div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-6xl overflow-hidden rounded-[1.75rem] border border-white/70 bg-[#e8f0eb]/85 shadow-[0_24px_80px_rgba(20,68,75,0.18)] lg:grid-cols-[.85fr_1.15fr]"><section className="border-b border-white/70 p-6 lg:border-b-0 lg:border-r lg:p-10"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-700 text-white"><Brain size={22} /></div><div><p className="font-semibold">SkillSync AI</p><p className="text-sm text-slate-500">Student ID builder</p></div></div><button onClick={onLogout} className="rounded-2xl p-3 text-slate-500 hover:bg-white/60"><LogOut size={18} /></button></div><div className="mt-12"><p className="text-sm font-semibold text-teal-700">Not another premade roadmap</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em]">First we understand you. Then we build your path.</h1><p className="mt-4 leading-7 text-slate-600">Your student profile captures what you know, what you want to become, how you prefer learning and how much time you can invest. SkillSync uses that profile to personalize topics, resources, pace, projects and reviews.</p></div><div className="mt-10 space-y-3">{['Profile questions', 'Career fit', 'Personalized path', 'Resource mix', 'Review feedback loop'].map((item, index) => <div key={item} className="flex items-center gap-3 rounded-2xl bg-white/35 p-3"><div className={cn('flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold', step >= index ? 'bg-teal-700 text-white' : 'bg-white text-slate-400')}>{index + 1}</div><span className="font-semibold text-sm">{item}</span></div>)}</div></section><section className="p-5 sm:p-8 lg:p-10"><div className="mb-6 flex items-center justify-between"><p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Step {step + 1} of 4</p><div className="h-2 w-40 overflow-hidden rounded-full bg-white/70"><div className="h-full rounded-full bg-teal-700 transition-all" style={{ width: `${((step + 1) / 4) * 100}%` }} /></div></div>{step === 0 && <Card><h2 className="text-2xl font-semibold tracking-tight">What do you know today?</h2><p className="mt-2 text-sm leading-6 text-slate-600">Add skills separated by commas. This becomes your baseline, not a decoration.</p><textarea value={skills} onChange={(event) => setSkills(event.target.value)} className="mt-5 min-h-36 w-full rounded-2xl border border-white/80 bg-white/60 p-4 text-sm outline-none focus:border-teal-700" placeholder="Python, HTML, SQL, basic DSA" /><div className="mt-4 flex flex-wrap gap-2">{parsedSkills.map((skill) => <Pill key={skill}>{skill}</Pill>)}</div></Card>}{step === 1 && <Card><h2 className="text-2xl font-semibold tracking-tight">What do you want to become?</h2><p className="mt-2 text-sm leading-6 text-slate-600">Pick a target. Recommendations are inferred from your course, skills and goal statement.</p><textarea value={goalReason} onChange={(event) => setGoalReason(event.target.value)} className="mt-5 min-h-24 w-full rounded-2xl border border-white/80 bg-white/60 p-4 text-sm outline-none focus:border-teal-700" /><div className="mt-5 grid gap-3 md:grid-cols-2">{recommended.map((career) => <button key={career.id} onClick={() => setGoal(career.id)} className={cn('rounded-2xl border p-4 text-left transition', goal === career.id ? 'border-teal-700 bg-teal-50' : 'border-white/70 bg-white/40 hover:bg-white/70')}><p className="font-semibold">{career.title}</p><p className="mt-1 text-xs font-semibold text-teal-700">{career.category}</p><p className="mt-2 text-sm leading-5 text-slate-600">{career.summary}</p></button>)}</div></Card>}{step === 2 && <Card><h2 className="text-2xl font-semibold tracking-tight">How should SkillSync teach you?</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><ChoiceGroup label="Learning pace" value={pace} setValue={setPace} options={[['slow', 'Slow & guided'], ['balanced', 'Balanced'], ['fast', 'Fast track']]} /><ChoiceGroup label="Preferred material" value={learningStyle} setValue={setLearningStyle} options={[['visual', 'Videos / visual'], ['theory', 'Theory first'], ['coding', 'Coding exercises'], ['project', 'Projects']]} /><ChoiceGroup label="Practice style" value={practicePreference} setValue={setPracticePreference} options={[['quizzes', 'Quizzes'], ['coding', 'Coding questions'], ['projects', 'Build projects'], ['reading', 'Reading notes']]} /><ChoiceGroup label="Current confidence" value={confidence} setValue={setConfidence} options={[['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']]} /></div><label className="mt-5 block text-sm font-semibold text-slate-700">Hours per week: {weeklyHours}<input type="range" min="2" max="25" value={weeklyHours} onChange={(event) => setWeeklyHours(Number(event.target.value))} className="mt-3 w-full accent-teal-700" /></label></Card>}{step === 3 && <Card><h2 className="text-2xl font-semibold tracking-tight">Your personalized student ID</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><MetricMini label="Goal" value={selectedCareer.title} /><MetricMini label="Pace" value={pace} /><MetricMini label="Style" value={learningStyle} /><MetricMini label="Weekly time" value={`${weeklyHours} hrs`} /></div><div className="mt-5 rounded-3xl bg-teal-700 p-5 text-white"><p className="text-sm font-semibold text-teal-100">Generated plan logic</p><p className="mt-2 leading-7">Your roadmap will prioritize {parsedSkills.length ? 'gaps after your known skills' : 'foundations first'}, use more {learningStyle} resources, include {practicePreference} checkpoints and estimate duration using your {weeklyHours} hours/week pace.</p></div></Card>}<div className="mt-6 flex justify-between"><button disabled={step === 0} onClick={() => setStep(Math.max(0, step - 1))} className="rounded-2xl bg-white/60 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white disabled:opacity-40">Back</button>{step < 3 ? <button onClick={() => setStep(step + 1)} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Continue</button> : <button onClick={finish} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60">{saving && <Loader2 size={16} className="animate-spin" />} Create my personalized path</button>}</div></section></div></main>
+}
+
+function ChoiceGroup<T extends string>({ label, value, setValue, options }: { label: string; value: T; setValue: (value: T) => void; options: Array<[T, string]> }) {
+  return <div><p className="mb-2 text-sm font-semibold text-slate-700">{label}</p><div className="space-y-2">{options.map(([id, text]) => <button key={id} onClick={() => setValue(id)} className={cn('w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition', value === id ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-white/80 bg-white/45 text-slate-600 hover:bg-white')}>{text}</button>)}</div></div>
+}
+
+function recommendCareers(signal: string) {
+  const q = signal.toLowerCase()
+  const scored = careers.map((career) => ({ career, score: `${career.title} ${career.category} ${career.skills.join(' ')} ${career.technologies.join(' ')}`.toLowerCase().split(' ').filter((word) => q.includes(word.toLowerCase())).length }))
+  return scored.sort((a, b) => b.score - a.score).slice(0, 4).map((item) => item.career)
 }
 
 function MiniLink({ icon: Icon, label }: { icon: typeof BookOpen; label: string }) {
@@ -340,7 +393,7 @@ function StatusDot({ status }: { status: string }) {
   return <Circle className="fill-white text-teal-700" size={18} />
 }
 
-function CareerEngine({ user, setUser }: { user: UserProfile; setUser: (user: UserProfile) => void }) {
+function CareerEngine({ user, setUser, setView }: { user: UserProfile; setUser: (user: UserProfile) => void; setView: (view: View) => void }) {
   const [term, setTerm] = useState('')
   const [category, setCategory] = useState('All')
   const selected = getCareer(user.selectedCareerId)
@@ -351,6 +404,7 @@ function CareerEngine({ user, setUser }: { user: UserProfile; setUser: (user: Us
   async function choose(role: CareerRole) {
     const updated = await SkillSyncAPI.setCareer(user, role.id)
     setUser(updated)
+    setView('roadmap')
   }
 
   return <div className="space-y-6">

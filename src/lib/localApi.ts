@@ -1,4 +1,5 @@
-import { careers, getCareer, makeInitialProgress, type Activity, type UserProfile } from './skillSyncData'
+import { careers, getCareer, makeInitialProgress, type Activity, type LearningProfile, type UserProfile } from './skillSyncData'
+import { SupabaseStore } from './supabaseStore'
 
 const USERS_KEY = 'skillsync.users.v1'
 const SESSION_KEY = 'skillsync.session.v1'
@@ -15,6 +16,29 @@ function writeUsers(users: UserProfile[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users))
 }
 
+function saveLocalUser(user: UserProfile) {
+  const users = readUsers()
+  const exists = users.some((candidate) => candidate.userId === user.userId)
+  writeUsers(exists ? users.map((candidate) => candidate.userId === user.userId ? user : candidate) : [...users, user])
+}
+
+async function syncUser(user: UserProfile) {
+  saveLocalUser(user)
+  try {
+    await SupabaseStore.upsertUser(user)
+  } catch (error) {
+    console.warn('SkillSync Supabase user sync skipped:', error)
+  }
+}
+
+async function syncVideos() {
+  try {
+    await SupabaseStore.seedYouTubeVideos()
+  } catch (error) {
+    console.warn('SkillSync Supabase video sync skipped:', error)
+  }
+}
+
 export async function hashPassword(password: string, salt: string) {
   const bytes = new TextEncoder().encode(`${salt}:${password}`)
   const digest = await crypto.subtle.digest('SHA-256', bytes)
@@ -29,12 +53,19 @@ export const SkillSyncAPI = {
   async getSession() {
     const userId = localStorage.getItem(SESSION_KEY)
     if (!userId) return null
+    await syncVideos()
+    const remoteUser = await SupabaseStore.findUser(userId)
+    if (remoteUser) {
+      saveLocalUser(remoteUser)
+      return remoteUser
+    }
     return readUsers().find((user) => user.userId === userId) || null
   },
 
   async signUp(input: Pick<UserProfile, 'fullName' | 'email' | 'userId' | 'college' | 'department' | 'academicYear'> & { password: string }) {
     const users = readUsers()
-    if (users.some((user) => user.userId.toLowerCase() === input.userId.toLowerCase() || user.email.toLowerCase() === input.email.toLowerCase())) {
+    const remoteExisting = await SupabaseStore.findUser(input.userId)
+    if (remoteExisting || users.some((user) => user.userId.toLowerCase() === input.userId.toLowerCase() || user.email.toLowerCase() === input.email.toLowerCase())) {
       throw new Error('An account with this User ID or email already exists.')
     }
     const salt = newSalt()
@@ -57,14 +88,22 @@ export const SkillSyncAPI = {
       activities: [{ id: crypto.randomUUID(), type: 'career', text: `Started ${defaultCareer.title} path`, at: new Date().toISOString() }],
       createdAt: new Date().toISOString()
     }
-    writeUsers([...users, user])
+    await syncVideos()
+    await syncUser(user)
     localStorage.setItem(SESSION_KEY, user.userId)
     return user
   },
 
   async login(userId: string, password: string) {
     const users = readUsers()
-    const user = users.find((candidate) => candidate.userId.toLowerCase() === userId.toLowerCase())
+    let user = users.find((candidate) => candidate.userId.toLowerCase() === userId.toLowerCase())
+    if (!user) {
+      const remoteUser = await SupabaseStore.findUser(userId)
+      if (remoteUser) {
+        user = remoteUser
+        saveLocalUser(remoteUser)
+      }
+    }
     if (!user) {
       const error = new Error('ACCOUNT_NOT_FOUND')
       error.name = 'ACCOUNT_NOT_FOUND'
@@ -72,6 +111,13 @@ export const SkillSyncAPI = {
     }
     const hashed = await hashPassword(password, user.passwordSalt)
     if (hashed !== user.passwordHash) throw new Error('Invalid password. Please try again.')
+    await syncVideos()
+    await syncUser(user)
+    try {
+      await SupabaseStore.recordLogin(user)
+    } catch (error) {
+      console.warn('SkillSync Supabase login event skipped:', error)
+    }
     localStorage.setItem(SESSION_KEY, user.userId)
     return user
   },
@@ -81,9 +127,7 @@ export const SkillSyncAPI = {
   },
 
   async updateUser(user: UserProfile) {
-    const users = readUsers()
-    const next = users.map((candidate) => candidate.userId === user.userId ? user : candidate)
-    writeUsers(next)
+    await syncUser(user)
     return user
   },
 
@@ -106,6 +150,23 @@ export const SkillSyncAPI = {
     const uniqueSkills = Array.from(new Set(skills.map((skill) => skill.trim()).filter(Boolean)))
     const activity: Activity = { id: crypto.randomUUID(), type: resumeFileName ? 'resume' : 'skill', text: resumeFileName ? `Uploaded resume ${resumeFileName}` : 'Updated skill profile', at: new Date().toISOString() }
     const next = { ...user, skills: uniqueSkills, resumeFileName, activities: [activity, ...user.activities].slice(0, 20) }
+    return this.updateUser(next)
+  },
+
+  async saveLearningProfile(user: UserProfile, profile: LearningProfile, careerId: string, skills: string[]) {
+    const career = getCareer(careerId)
+    const activity: Activity = { id: crypto.randomUUID(), type: 'career', text: `Created personalized ${career.title} learning plan`, at: new Date().toISOString() }
+    const next: UserProfile = {
+      ...user,
+      selectedCareerId: careerId,
+      skills: Array.from(new Set(skills.map((skill) => skill.trim()).filter(Boolean))),
+      learningProfile: profile,
+      stageProgress: {
+        ...user.stageProgress,
+        [careerId]: user.stageProgress[careerId] || makeInitialProgress(career)
+      },
+      activities: [activity, ...user.activities].slice(0, 20)
+    }
     return this.updateUser(next)
   },
 
