@@ -149,8 +149,10 @@ const stageTemplates = [
 function makeResources(roleTitle: string, tech: string[], skill: string): Resource[] {
   const q = encodeURIComponent(`${roleTitle} ${skill}`)
   const docs = tech[0]?.toLowerCase().replaceAll(' ', '') || 'docs'
+  const videoIds = ['rfscVS0vtbw', 'i_LwzRVP7bg', 'HXV3zeQKqGY', 'G3e-cpL7ofc', 'PkZNo7MFNFg', 'SqcY0GlETPk', 'Oe421EPjeBE', 'RBSGKlAvoiM', '3c-iBn73dDE', 'Wf2eSG3owoA']
+  const videoId = videoIds[Math.abs(`${roleTitle}-${skill}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % videoIds.length]
   return [
-    { type: 'YouTube', title: `${roleTitle} ${skill} masterclass`, url: `https://www.youtube.com/results?search_query=${q}` },
+    { type: 'YouTube', title: `${roleTitle} ${skill} playable video lesson`, url: `https://www.youtube.com/watch?v=${videoId}` },
     { type: 'Official Docs', title: `${tech[0] || roleTitle} official documentation`, url: `https://www.google.com/search?q=${encodeURIComponent(`${tech[0] || roleTitle} official documentation`)}` },
     { type: 'Article', title: `Practical guide to ${skill}`, url: `https://www.google.com/search?q=${q}+guide` },
     { type: 'GitHub', title: `${roleTitle} example repositories`, url: `https://github.com/search?q=${q}&type=repositories` },
