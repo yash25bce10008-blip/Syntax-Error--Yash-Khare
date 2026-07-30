@@ -281,23 +281,34 @@ function AppShell({ user, setUser }: { user: UserProfile; setUser: (user: UserPr
 function OnboardingFlow({ user, setUser, onLogout }: { user: UserProfile; setUser: (user: UserProfile) => void; onLogout: () => void }) {
   const [step, setStep] = useState(0)
   const [goal, setGoal] = useState(user.selectedCareerId || careers[0].id)
-  const [skills, setSkills] = useState(user.skills.join(', '))
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(user.skills)
   const [pace, setPace] = useState<LearningProfile['pace']>('balanced')
   const [learningStyle, setLearningStyle] = useState<LearningProfile['learningStyle']>('coding')
   const [practicePreference, setPracticePreference] = useState<LearningProfile['practicePreference']>('projects')
   const [weeklyHours, setWeeklyHours] = useState(6)
   const [confidence, setConfidence] = useState<LearningProfile['confidence']>('beginner')
-  const [goalReason, setGoalReason] = useState('I want a clear job-ready path with projects and resources.')
+  const [goalReason, setGoalReason] = useState('I want an internship-ready portfolio and guided projects.')
   const [saving, setSaving] = useState(false)
   const selectedCareer = getCareer(goal)
-  const parsedSkills = skills.split(',').map((skill) => skill.trim()).filter(Boolean)
-  const recommended = recommendCareers(`${goalReason} ${user.department} ${skills}`)
+  const recommended = recommendCareers(`${goalReason} ${user.department} ${selectedSkills.join(' ')}`)
+  const suggestedSkills = ['Python', 'HTML', 'CSS', 'JavaScript', 'SQL', 'React', 'Git', 'Machine Learning', 'Statistics', 'Excel', 'Java', 'C++', 'APIs', 'Figma', 'Linux', 'Docker']
+  const goalOptions = ['I want an internship-ready portfolio and guided projects.', 'I want to crack placements with coding practice.', 'I want strong fundamentals before advanced topics.', 'I want to build real products and learn by doing.']
+  const parsedSkills = selectedSkills
+  const skills = selectedSkills.join(', ')
+
+  function setSkills(value: string) {
+    setSelectedSkills(value.split(',').map((skill) => skill.trim()).filter(Boolean))
+  }
+
+  function toggleSkill(skill: string) {
+    setSelectedSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill])
+  }
 
   async function finish() {
     setSaving(true)
     const profile: LearningProfile = {
       completed: true,
-      currentSkills: parsedSkills,
+      currentSkills: selectedSkills,
       desiredRole: selectedCareer.title,
       pace,
       learningStyle,
@@ -308,7 +319,7 @@ function OnboardingFlow({ user, setUser, onLogout }: { user: UserProfile; setUse
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
-    const updated = await SkillSyncAPI.saveLearningProfile(user, profile, selectedCareer.id, parsedSkills)
+    const updated = await SkillSyncAPI.saveLearningProfile(user, profile, selectedCareer.id, selectedSkills)
     setUser(updated)
     setSaving(false)
   }
@@ -493,6 +504,10 @@ function StageDrawer({ stage, career, user, setUser, onClose }: { stage: Roadmap
   const saved = user.stageProgress[career.id]?.[stage.id]
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [score, setScore] = useState<number | null>(saved?.quizScore ?? null)
+  const [showReview, setShowReview] = useState(false)
+  const [reviewRating, setReviewRating] = useState(saved?.review?.rating || 5)
+  const [difficultyFeedback, setDifficultyFeedback] = useState(saved?.review?.difficultyFeedback || 'just-right')
+  const [paceFeedback, setPaceFeedback] = useState(saved?.review?.paceFeedback || 'balanced')
   const complete = Object.keys(answers).length === stage.quiz.length
   const video = getCuratedVideo(career, stage)
 
@@ -504,7 +519,24 @@ function StageDrawer({ stage, career, user, setUser, onClose }: { stage: Roadmap
     setUser(updated)
   }
 
-  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-slate-950/25" onClick={onClose}><motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 260 }} onClick={(event) => event.stopPropagation()} className="ml-auto h-full w-full max-w-2xl overflow-auto bg-[#eef4f0] p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-teal-700">{career.title}</p><h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">{stage.title}</h2><p className="mt-3 leading-7 text-slate-600">{stage.description}</p></div><button onClick={onClose} className="rounded-2xl p-2 hover:bg-white"><X size={20} /></button></div><div className="mt-6 grid gap-3 sm:grid-cols-3"><MetricMini label="Difficulty" value={stage.difficulty} /><MetricMini label="Time" value={stage.duration} /><MetricMini label="XP" value={`${stage.xp}`} /></div><Card className="mt-5"><h3 className="font-semibold">Prerequisites</h3><div className="mt-3 flex flex-wrap gap-2">{stage.prerequisites.map((item) => <Pill key={item}>{item}</Pill>)}</div></Card><Card className="mt-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Watch inside SkillSync</h3><a href={youtubeWatchUrl(career, stage)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-white/70 px-3 py-1.5 text-xs font-bold text-teal-700 transition hover:bg-white">Open YouTube <ArrowRight size={13} /></a></div><p className="mt-2 text-sm leading-6 text-slate-600">Curated playable lesson: <span className="font-semibold text-slate-800">{video.title}</span>. You can watch it here and still open the original YouTube link.</p><div className="mt-4 overflow-hidden rounded-2xl border border-white/80 bg-slate-950"><iframe title={video.title} src={youtubeEmbedUrl(career, stage)} className="aspect-video w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div></Card><Card className="mt-5"><h3 className="font-semibold">Learning resources</h3><div className="mt-4 space-y-2"><a href={youtubeWatchUrl(career, stage)} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl bg-white/55 p-3 text-sm transition hover:bg-white"><span><span className="font-semibold">{video.title}</span><span className="ml-2 text-xs text-teal-700">YouTube</span></span><ArrowRight size={15} /></a>{stage.resources.filter((resource) => resource.type !== 'YouTube').map((resource) => <a key={`${resource.type}-${resource.title}`} href={resource.url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl bg-white/55 p-3 text-sm transition hover:bg-white"><span><span className="font-semibold">{resource.title}</span><span className="ml-2 text-xs text-teal-700">{resource.type}</span></span><ArrowRight size={15} /></a>)}</div></Card><Card className="mt-5"><div className="flex items-center justify-between"><h3 className="font-semibold">Interactive quiz</h3>{score !== null && <span className={cn('rounded-full px-3 py-1 text-xs font-bold', score >= 67 ? 'bg-teal-50 text-teal-700' : 'bg-red-50 text-red-700')}>Score {score}%</span>}</div><div className="mt-5 space-y-5">{stage.quiz.map((question, index) => <div key={question.question} className="rounded-2xl bg-white/45 p-4"><p className="font-semibold">{index + 1}. {question.question}</p><div className="mt-3 grid gap-2">{question.options.map((option, optionIndex) => { const selected = answers[index] === optionIndex; const reveal = score !== null; const correct = question.answer === optionIndex; return <button key={option} onClick={() => score === null && setAnswers({ ...answers, [index]: optionIndex })} className={cn('rounded-xl border px-3 py-2 text-left text-sm transition', selected ? 'border-teal-700 bg-teal-50' : 'border-slate-200 bg-white/60 hover:bg-white', reveal && correct && 'border-teal-700 bg-teal-50 text-teal-800', reveal && selected && !correct && 'border-red-300 bg-red-50 text-red-700')}>{option}</button> })}</div>{score !== null && <p className="mt-3 text-sm text-slate-600">{question.explanation}</p>}</div>)}</div><button disabled={!complete || score !== null} onClick={submitQuiz} className="mt-5 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Save score and unlock next stage</button></Card></motion.aside></motion.div>
+  async function markVideoDone() {
+    const updated = await SkillSyncAPI.saveVideoDone(user, career.id, stage.id, video.title)
+    setUser(updated)
+    setShowReview(true)
+  }
+
+  async function saveReview() {
+    const updated = await SkillSyncAPI.saveReview(user, career.id, stage.id, { rating: reviewRating, difficultyFeedback, paceFeedback, comment: `${video.title} review`, at: new Date().toISOString() })
+    setUser(updated)
+    setShowReview(false)
+  }
+
+  function retakeQuiz() {
+    setAnswers({})
+    setScore(null)
+  }
+
+  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-slate-950/25" onClick={onClose}><motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 260 }} onClick={(event) => event.stopPropagation()} className="ml-auto h-full w-full max-w-2xl overflow-auto bg-[#eef4f0] p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-teal-700">{career.title}</p><h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">{stage.title}</h2><p className="mt-3 leading-7 text-slate-600">{stage.description}</p></div><button onClick={onClose} className="rounded-2xl p-2 hover:bg-white"><X size={20} /></button></div><div className="mt-6 grid gap-3 sm:grid-cols-3"><MetricMini label="Difficulty" value={stage.difficulty} /><MetricMini label="Time" value={stage.duration} /><MetricMini label="XP" value={`${stage.xp}`} /></div><Card className="mt-5"><h3 className="font-semibold">Prerequisites</h3><div className="mt-3 flex flex-wrap gap-2">{stage.prerequisites.map((item) => <Pill key={item}>{item}</Pill>)}</div></Card><Card className="mt-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Watch inside SkillSync</h3><a href={youtubeWatchUrl(career, stage)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-white/70 px-3 py-1.5 text-xs font-bold text-teal-700 transition hover:bg-white">Open YouTube <ArrowRight size={13} /></a></div><p className="mt-2 text-sm leading-6 text-slate-600">Curated playable lesson: <span className="font-semibold text-slate-800">{video.title}</span>.</p><div className="mt-4 overflow-hidden rounded-2xl border border-white/80 bg-slate-950"><iframe title={video.title} src={youtubeEmbedUrl(career, stage)} className="aspect-video w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><button onClick={markVideoDone} className={cn('mt-4 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition', saved?.videoCompleted ? 'bg-teal-50 text-teal-700' : 'bg-teal-700 text-white hover:bg-teal-800')}>{saved?.videoCompleted ? 'Video marked as done' : 'Mark video as done'}</button>{showReview && <div className="mt-4 rounded-2xl bg-white/55 p-4"><p className="font-semibold">Quick review</p><div className="mt-3 flex gap-2">{[1,2,3,4,5].map((rating) => <button key={rating} onClick={() => setReviewRating(rating)} className={cn('h-9 w-9 rounded-full text-sm font-bold', reviewRating === rating ? 'bg-teal-700 text-white' : 'bg-white text-slate-500')}>{rating}</button>)}</div><div className="mt-3 grid gap-2 sm:grid-cols-2"><select value={difficultyFeedback} onChange={(event) => setDifficultyFeedback(event.target.value)} className="rounded-xl border border-white bg-white/80 px-3 py-2 text-sm"><option value="easy">Too easy</option><option value="just-right">Just right</option><option value="hard">Too hard</option></select><select value={paceFeedback} onChange={(event) => setPaceFeedback(event.target.value)} className="rounded-xl border border-white bg-white/80 px-3 py-2 text-sm"><option value="slow">Too slow</option><option value="balanced">Balanced</option><option value="fast">Too fast</option></select></div><button onClick={saveReview} className="mt-3 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Save review</button></div>}</Card><Card className="mt-5"><h3 className="font-semibold">Learning resources</h3><div className="mt-4 space-y-2"><a href={youtubeWatchUrl(career, stage)} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl bg-white/55 p-3 text-sm transition hover:bg-white"><span><span className="font-semibold">{video.title}</span><span className="ml-2 text-xs text-teal-700">YouTube</span></span><ArrowRight size={15} /></a>{stage.resources.filter((resource) => resource.type !== 'YouTube').map((resource) => <a key={`${resource.type}-${resource.title}`} href={resource.url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl bg-white/55 p-3 text-sm transition hover:bg-white"><span><span className="font-semibold">{resource.title}</span><span className="ml-2 text-xs text-teal-700">{resource.type}</span></span><ArrowRight size={15} /></a>)}</div></Card><Card className="mt-5"><div className="flex items-center justify-between"><h3 className="font-semibold">Interactive quiz</h3>{score !== null && <span className={cn('rounded-full px-3 py-1 text-xs font-bold', score >= 67 ? 'bg-teal-50 text-teal-700' : 'bg-red-50 text-red-700')}>Score {score}%</span>}</div><div className="mt-5 space-y-5">{stage.quiz.map((question, index) => <div key={question.question} className="rounded-2xl bg-white/45 p-4"><p className="font-semibold">{index + 1}. {question.question}</p><div className="mt-3 grid gap-2">{question.options.map((option, optionIndex) => { const selected = answers[index] === optionIndex; const reveal = score !== null; const correct = question.answer === optionIndex; return <button key={option} onClick={() => score === null && setAnswers({ ...answers, [index]: optionIndex })} className={cn('rounded-xl border px-3 py-2 text-left text-sm transition', selected ? 'border-teal-700 bg-teal-50' : 'border-slate-200 bg-white/60 hover:bg-white', reveal && correct && 'border-teal-700 bg-teal-50 text-teal-800', reveal && selected && !correct && 'border-red-300 bg-red-50 text-red-700')}>{option}</button> })}</div>{score !== null && <p className="mt-3 text-sm text-slate-600">{question.explanation}</p>}</div>)}</div><div className="mt-5 grid gap-2 sm:grid-cols-2"><button disabled={!complete || score !== null} onClick={submitQuiz} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Save score</button><button onClick={retakeQuiz} className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-teal-800 transition hover:bg-white">Retake quiz</button></div></Card></motion.aside></motion.div>
 }
 
 function MetricMini({ label, value }: { label: string; value: string }) {

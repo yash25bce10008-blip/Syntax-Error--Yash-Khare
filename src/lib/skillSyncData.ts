@@ -44,6 +44,14 @@ export type StageProgress = {
   status: StageStatus
   progress: number
   quizScore?: number
+  videoCompleted?: boolean
+  review?: {
+    rating: number
+    difficultyFeedback: string
+    paceFeedback: string
+    comment: string
+    at: string
+  }
 }
 
 export type LearningProfile = {
@@ -64,7 +72,7 @@ export type Activity = {
   id: string
   text: string
   at: string
-  type: 'career' | 'skill' | 'quiz' | 'roadmap' | 'resume'
+  type: 'quiz' | 'video'
 }
 
 export type UserProfile = {

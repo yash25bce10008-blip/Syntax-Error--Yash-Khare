@@ -85,7 +85,7 @@ export const SkillSyncAPI = {
       stageProgress: { [defaultCareer.id]: makeInitialProgress(defaultCareer) },
       xp: 0,
       streak: 1,
-      activities: [{ id: crypto.randomUUID(), type: 'career', text: `Started ${defaultCareer.title} path`, at: new Date().toISOString() }],
+      activities: [],
       createdAt: new Date().toISOString()
     }
     await syncVideos()
@@ -133,29 +133,25 @@ export const SkillSyncAPI = {
 
   async setCareer(user: UserProfile, careerId: string) {
     const career = getCareer(careerId)
-    const activity: Activity = { id: crypto.randomUUID(), type: 'career', text: `Selected ${career.title} as career goal`, at: new Date().toISOString() }
     const next: UserProfile = {
       ...user,
       selectedCareerId: careerId,
       stageProgress: {
         ...user.stageProgress,
         [careerId]: user.stageProgress[careerId] || makeInitialProgress(career)
-      },
-      activities: [activity, ...user.activities].slice(0, 20)
+      }
     }
     return this.updateUser(next)
   },
 
   async saveSkills(user: UserProfile, skills: string[], resumeFileName?: string) {
     const uniqueSkills = Array.from(new Set(skills.map((skill) => skill.trim()).filter(Boolean)))
-    const activity: Activity = { id: crypto.randomUUID(), type: resumeFileName ? 'resume' : 'skill', text: resumeFileName ? `Uploaded resume ${resumeFileName}` : 'Updated skill profile', at: new Date().toISOString() }
-    const next = { ...user, skills: uniqueSkills, resumeFileName, activities: [activity, ...user.activities].slice(0, 20) }
+    const next = { ...user, skills: uniqueSkills, resumeFileName }
     return this.updateUser(next)
   },
 
   async saveLearningProfile(user: UserProfile, profile: LearningProfile, careerId: string, skills: string[]) {
     const career = getCareer(careerId)
-    const activity: Activity = { id: crypto.randomUUID(), type: 'career', text: `Created personalized ${career.title} learning plan`, at: new Date().toISOString() }
     const next: UserProfile = {
       ...user,
       selectedCareerId: careerId,
@@ -164,10 +160,30 @@ export const SkillSyncAPI = {
       stageProgress: {
         ...user.stageProgress,
         [careerId]: user.stageProgress[careerId] || makeInitialProgress(career)
-      },
-      activities: [activity, ...user.activities].slice(0, 20)
+      }
     }
     return this.updateUser(next)
+  },
+
+  async saveVideoDone(user: UserProfile, careerId: string, stageId: string, videoTitle: string) {
+    const career = getCareer(careerId)
+    const current = user.stageProgress[careerId] || makeInitialProgress(career)
+    const previous = current[stageId] || { status: 'available' as const, progress: 0 }
+    const nextCareerProgress: Record<string, import('./skillSyncData').StageProgress> = {
+      ...current,
+      [stageId]: { ...previous, status: previous.status === 'locked' ? 'available' : previous.status, videoCompleted: true, progress: Math.max(previous.progress, 35) }
+    }
+    const activity: Activity = { id: crypto.randomUUID(), type: 'video', text: `Watched ${videoTitle}`, at: new Date().toISOString() }
+    const next: UserProfile = { ...user, stageProgress: { ...user.stageProgress, [careerId]: nextCareerProgress }, activities: [activity, ...user.activities].slice(0, 20) }
+    return this.updateUser(next)
+  },
+
+  async saveReview(user: UserProfile, careerId: string, stageId: string, review: NonNullable<import('./skillSyncData').StageProgress['review']>) {
+    const career = getCareer(careerId)
+    const current = user.stageProgress[careerId] || makeInitialProgress(career)
+    const previous = current[stageId] || { status: 'available' as const, progress: 0 }
+    const nextCareerProgress: Record<string, import('./skillSyncData').StageProgress> = { ...current, [stageId]: { ...previous, review } }
+    return this.updateUser({ ...user, stageProgress: { ...user.stageProgress, [careerId]: nextCareerProgress } })
   },
 
   async saveStage(user: UserProfile, careerId: string, stageId: string, progress: number, quizScore?: number) {
@@ -175,13 +191,14 @@ export const SkillSyncAPI = {
     const current = user.stageProgress[careerId] || makeInitialProgress(career)
     const stageIndex = career.roadmap.findIndex((stage) => stage.id === stageId)
     const completed = progress >= 100 && (quizScore ?? 0) >= 67
-    const nextCareerProgress: Record<string, import('./skillSyncData').StageProgress> = { ...current, [stageId]: { status: completed ? 'completed' : 'in-progress', progress, quizScore } }
+    const previous = current[stageId] || { status: 'available' as const, progress: 0 }
+    const nextCareerProgress: Record<string, import('./skillSyncData').StageProgress> = { ...current, [stageId]: { ...previous, status: completed ? 'completed' : 'in-progress', progress, quizScore } }
     if (completed && career.roadmap[stageIndex + 1]) {
       const nextStageId = career.roadmap[stageIndex + 1].id
       if (nextCareerProgress[nextStageId]?.status === 'locked') nextCareerProgress[nextStageId] = { ...nextCareerProgress[nextStageId], status: 'available' }
     }
     const earnedXp = completed ? career.roadmap[stageIndex]?.xp || 0 : 0
-    const activity: Activity = { id: crypto.randomUUID(), type: 'quiz', text: `Saved ${career.roadmap[stageIndex]?.title || 'stage'} score${quizScore !== undefined ? ` (${quizScore}%)` : ''}`, at: new Date().toISOString() }
+    const activity: Activity = { id: crypto.randomUUID(), type: 'quiz', text: `Solved ${career.roadmap[stageIndex]?.title || 'stage'} quiz${quizScore !== undefined ? ` (${quizScore}%)` : ''}`, at: new Date().toISOString() }
     const next: UserProfile = {
       ...user,
       xp: user.xp + earnedXp,
