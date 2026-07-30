@@ -1,4 +1,5 @@
 import { careers, type UserProfile } from './skillSyncData'
+import { videoForStage } from './databaseTables'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -127,18 +128,17 @@ export const SupabaseStore = {
   async seedYouTubeVideos() {
     if (!configured) return
     const rows = careers.flatMap((career) => career.roadmap.map((stage, stageIndex) => {
-      const video = stage.resources.find((resource) => resource.type === 'YouTube')
-      const videoUrl = video?.url || 'https://www.youtube.com/watch?v=rfscVS0vtbw'
-      const id = videoIdFromUrl(videoUrl)
+      const video = videoForStage(career, stage)
+      const videoUrl = `https://www.youtube.com/watch?v=${video.id}`
       return {
         id: `${career.id}-${stage.id}`,
         career_id: career.id,
         career_title: career.title,
         stage_id: stage.id,
         stage_title: stage.title,
-        video_title: video?.title || `${career.title} lesson`,
+        video_title: video.title,
         video_url: videoUrl,
-        embed_url: `https://www.youtube.com/embed/${id}`,
+        embed_url: `https://www.youtube.com/embed/${video.id}`,
         tags: [career.category, career.title, ...career.skills.slice(0, 3)]
       }
     }))
@@ -152,18 +152,22 @@ export const SupabaseStore = {
       outcomes: [stage.description, `Build evidence for ${career.title}`, `Practice with ${career.technologies.slice(0, 2).join(' and ')}`],
       prerequisite_topics: stage.prerequisites
     })))
-    const resourceRows = careers.flatMap((career) => career.roadmap.flatMap((stage) => stage.resources.map((resource, resourceIndex) => ({
-      id: `${career.id}-${stage.id}-${resource.type.toLowerCase().replaceAll(' ', '-')}-${resourceIndex}`,
-      topic_id: `${career.id}-${stage.id}-topic`,
-      resource_type: resource.type,
-      title: resource.title,
-      url: resource.url,
-      provider: resource.type === 'YouTube' ? 'YouTube' : resource.type === 'GitHub' ? 'GitHub' : 'Web',
-      learning_style: resource.type === 'YouTube' ? 'visual' : resource.type === 'Practice' ? 'coding' : resource.type === 'Official Docs' ? 'theory' : 'balanced',
-      estimated_minutes: resource.type === 'YouTube' ? 90 : resource.type === 'Practice' ? 60 : 35,
-      quality_score: 4.6,
-      metadata: { career: career.title, stage: stage.title, difficulty: stage.difficulty }
-    }))))
+    const resourceRows = careers.flatMap((career) => career.roadmap.flatMap((stage) => {
+      const video = videoForStage(career, stage)
+      const resources = [{ type: 'YouTube' as const, title: video.title, url: `https://www.youtube.com/watch?v=${video.id}` }, ...stage.resources.filter((resource) => resource.type !== 'YouTube')]
+      return resources.map((resource, resourceIndex) => ({
+        id: `${career.id}-${stage.id}-${resource.type.toLowerCase().replaceAll(' ', '-')}-${resourceIndex}`,
+        topic_id: `${career.id}-${stage.id}-topic`,
+        resource_type: resource.type,
+        title: resource.title,
+        url: resource.url,
+        provider: resource.type === 'YouTube' ? 'YouTube' : resource.type === 'GitHub' ? 'GitHub' : 'Web',
+        learning_style: resource.type === 'YouTube' ? 'visual' : resource.type === 'Practice' ? 'coding' : resource.type === 'Official Docs' ? 'theory' : 'balanced',
+        estimated_minutes: resource.type === 'YouTube' ? 90 : resource.type === 'Practice' ? 60 : 35,
+        quality_score: 4.6,
+        metadata: { career: career.title, stage: stage.title, difficulty: stage.difficulty }
+      }))
+    }))
     for (let index = 0; index < rows.length; index += 200) {
       const chunk = rows.slice(index, index + 200)
       const response = await fetch(endpoint('skillsync_youtube_videos', '?on_conflict=id'), {

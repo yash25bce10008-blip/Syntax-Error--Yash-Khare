@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SkillSyncAPI } from './lib/localApi'
+import { buildDatabaseTables, videoForStage } from './lib/databaseTables'
 import {
   calculateGap,
   careers,
@@ -45,14 +46,15 @@ import {
   type UserProfile
 } from './lib/skillSyncData'
 
-type View = 'dashboard' | 'careers' | 'roadmap' | 'skills'
+type View = 'dashboard' | 'careers' | 'roadmap' | 'skills' | 'database'
 type AuthView = 'login' | 'signup'
 
 const nav = [
   { id: 'dashboard' as View, label: 'Dashboard', icon: LayoutDashboard },
   { id: 'careers' as View, label: 'Career Engine', icon: BriefcaseBusiness },
   { id: 'roadmap' as View, label: 'Roadmap', icon: Target },
-  { id: 'skills' as View, label: 'Resume & Skills', icon: FileText }
+  { id: 'skills' as View, label: 'Resume & Skills', icon: FileText },
+  { id: 'database' as View, label: 'Database', icon: BarChart3 }
 ]
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -270,6 +272,7 @@ function AppShell({ user, setUser }: { user: UserProfile; setUser: (user: UserPr
             {view === 'careers' && <CareerEngine user={user} setUser={setUser} setView={setView} />}
             {view === 'roadmap' && <RoadmapView user={user} career={career} onStage={setDrawerStage} />}
             {view === 'skills' && <SkillsView user={user} setUser={setUser} career={career} />}
+            {view === 'database' && <DatabaseView user={user} />}
           </div>
         </section>
       </div>
@@ -472,6 +475,14 @@ function SkillsView({ user, setUser, career }: { user: UserProfile; setUser: (us
   return <div className="space-y-6"><Title eyebrow="Resume & Skills" title="Build a living skill profile" subtitle="Upload a PDF resume or add skills manually. Extracted skills are saved to the local data layer and compared against your selected career." /><div className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]"><Card><label className="flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-[1.25rem] border border-dashed border-teal-700/35 bg-white/35 p-6 text-center transition hover:bg-white/60"><Upload className="text-teal-700" size={32} /><p className="mt-4 font-semibold">Upload PDF resume</p><p className="mt-2 text-sm leading-6 text-slate-500">SkillSync scans readable text and filename signals to populate your profile.</p><input type="file" accept="application/pdf" onChange={(event) => upload(event.target.files?.[0])} className="sr-only" /></label>{processing && <p className="mt-4 flex items-center gap-2 text-sm text-teal-700"><Loader2 className="animate-spin" size={16} /> Extracting skills...</p>}<div className="mt-5"><label className="text-sm font-semibold text-slate-700">Manual skill entry</label><div className="mt-2 flex gap-2"><input value={manual} onChange={(event) => setManual(event.target.value)} placeholder="React, SQL, Python" className="min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/60 px-4 py-3 text-sm outline-none focus:border-teal-700" /><button onClick={addManual} className="rounded-2xl bg-slate-950 px-4 text-white transition hover:bg-slate-800"><Plus size={18} /></button></div></div></Card><Card><div className="flex items-center justify-between"><h2 className="font-semibold">Your Skills</h2><span className="text-sm text-slate-500">{user.skills.length} saved</span></div><div className="mt-4 flex flex-wrap gap-2">{user.skills.length ? user.skills.map((skill) => <button key={skill} onClick={() => removeSkill(skill)} className="rounded-full bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-red-50 hover:text-red-700">{skill} ×</button>) : <EmptyState text="No skills saved yet. Upload a resume or add skills manually." />}</div>{user.resumeFileName && <p className="mt-4 text-sm text-slate-500">Latest resume: <span className="font-semibold text-slate-700">{user.resumeFileName}</span></p>}</Card></div><Card><h2 className="font-semibold">Personalized Recommendations</h2><div className="mt-5 grid gap-4 md:grid-cols-3"><div className="rounded-2xl bg-white/50 p-4"><p className="text-sm text-slate-500">Skill match</p><p className="mt-1 text-3xl font-semibold">{gap.percent}%</p></div><div className="rounded-2xl bg-white/50 p-4"><p className="text-sm text-slate-500">Estimated learning</p><p className="mt-1 text-3xl font-semibold">{gap.estimatedDuration}</p></div><div className="rounded-2xl bg-white/50 p-4"><p className="text-sm text-slate-500">Top priority</p><p className="mt-1 text-xl font-semibold">{gap.priority[0] || 'Portfolio polish'}</p></div></div><div className="mt-5 flex flex-wrap gap-2">{gap.missing.map((skill) => <Pill key={skill} muted>{skill}</Pill>)}</div></Card></div>
 }
 
+function DatabaseView({ user }: { user: UserProfile }) {
+  const tables = buildDatabaseTables([user])
+  const [active, setActive] = useState(tables[3].name)
+  const table = tables.find((item) => item.name === active) || tables[0]
+
+  return <div className="space-y-6"><Title eyebrow="Database" title="Structured SkillSync tables" subtitle="A database-style view of the records used by the app: auth users, roles, stages, topic resources, quiz questions and attempts. Video links are stored per topic instead of reusing one generic course." /><div className="grid gap-5 xl:grid-cols-[260px_1fr]"><Card className="p-3"><div className="space-y-1">{tables.map((item) => <button key={item.name} onClick={() => setActive(item.name)} className={cn('flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-semibold transition', active === item.name ? 'bg-teal-700 text-white' : 'hover:bg-white/60')}><span>{item.name}</span><span className={cn('rounded-full px-2 py-0.5 text-xs', active === item.name ? 'bg-white/20' : 'bg-white/70 text-slate-500')}>{item.rows.length}</span></button>)}</div></Card><Card className="overflow-hidden p-0"><div className="flex items-center justify-between border-b border-white/70 p-5"><div><h2 className="text-xl font-semibold">{table.name}</h2><p className="mt-1 text-sm text-slate-500">{table.description}</p></div><span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-teal-700">{table.rows.length} rows</span></div><div className="overflow-auto"><table className="min-w-full border-collapse text-sm"><thead><tr className="bg-white/45 text-left text-xs uppercase tracking-[0.12em] text-slate-500">{table.columns.map((column) => <th key={column} className="whitespace-nowrap border-b border-white/80 px-4 py-3 font-bold">{column}</th>)}</tr></thead><tbody>{table.rows.slice(0, 80).map((row, index) => <tr key={index} className="border-b border-white/60 transition hover:bg-white/40">{table.columns.map((column) => <td key={column} className="max-w-[360px] truncate whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-700">{String(row[column] ?? '')}</td>)}</tr>)}</tbody></table></div></Card></div></div>
+}
+
 const curatedVideos = [
   { id: 'rfscVS0vtbw', title: 'Python Full Course', tags: ['python', 'ai', 'data', 'machine learning', 'automation', 'backend'] },
   { id: 'i_LwzRVP7bg', title: 'Machine Learning for Everybody', tags: ['machine learning', 'ai', 'statistics', 'model', 'data scientist'] },
@@ -488,8 +499,7 @@ const curatedVideos = [
 ]
 
 function getCuratedVideo(career: CareerRole, stage: RoadmapStage) {
-  const haystack = `${career.title} ${career.category} ${stage.title} ${stage.description} ${career.skills.join(' ')} ${career.technologies.join(' ')}`.toLowerCase()
-  return curatedVideos.find((video) => video.tags.some((tag) => haystack.includes(tag))) || curatedVideos[Math.abs(stage.id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % curatedVideos.length]
+  return videoForStage(career, stage)
 }
 
 function youtubeWatchUrl(career: CareerRole, stage: RoadmapStage) {
